@@ -1,0 +1,16 @@
+.git
+.agents
+.codex
+.aws
+.venv
+.tools
+**/node_modules
+**/.next
+**/__pycache__
+**/.pytest_cache
+**/data
+**/*.sqlite3
+**/*.log
+.env
+**/.env*
+test-results
