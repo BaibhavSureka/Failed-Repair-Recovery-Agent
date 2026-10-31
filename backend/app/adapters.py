@@ -1,4 +1,8 @@
-"""Explicitly simulated supplier responses and a disabled phase-two voice boundary."""
+"""Supplier adapters and the optional server-side Bolna voice boundary."""
+
+import os
+
+import httpx
 
 
 class SupplierUnavailable(RuntimeError):
@@ -27,7 +31,46 @@ class MockSupplierAdapter:
                 "status": "simulated_confirmed", "is_simulated": True}
 
 
-class DisabledBolnaAdapter:
+class BolnaAdapter:
+    base_url = "https://api.bolna.ai"
+
+    def __init__(self, api_key: str | None = None, agent_id: str | None = None, client=None):
+        self.api_key = api_key or os.getenv("BOLNA_API_KEY", "").strip()
+        self.agent_id = agent_id or os.getenv("BOLNA_AGENT_ID", "").strip()
+        self.client = client or httpx.Client(base_url=self.base_url, timeout=15)
+
     def status(self) -> dict:
-        return {"provider": "bolna", "available": False,
-                "message": "Phase two: Bolna is not connected. Use the working text recovery workflow."}
+        configured = bool(self.api_key and self.agent_id)
+        return {
+            "provider": "bolna",
+            "available": configured,
+            "configured": configured,
+            "message": "Bolna is configured for server-side calls." if configured
+            else "Configure BOLNA_API_KEY and BOLNA_AGENT_ID to enable voice. Text fallback remains available.",
+        }
+
+    def _headers(self) -> dict[str, str]:
+        if not self.api_key:
+            raise RuntimeError("BOLNA_API_KEY is not configured")
+        return {"Authorization": f"Bearer {self.api_key}", "Content-Type": "application/json"}
+
+    def verify_account(self) -> dict:
+        response = self.client.get("/user/me", headers=self._headers())
+        response.raise_for_status()
+        return response.json()
+
+    def place_call(self, recipient_phone_number: str) -> dict:
+        if not self.agent_id:
+            raise RuntimeError("BOLNA_AGENT_ID is not configured")
+        response = self.client.post(
+            "/call",
+            headers=self._headers(),
+            json={"agent_id": self.agent_id, "recipient_phone_number": recipient_phone_number},
+        )
+        response.raise_for_status()
+        return response.json()
+
+    def get_execution(self, execution_id: str) -> dict:
+        response = self.client.get(f"/executions/{execution_id}", headers=self._headers())
+        response.raise_for_status()
+        return response.json()

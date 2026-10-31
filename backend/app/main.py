@@ -6,10 +6,11 @@ from pathlib import Path
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+import httpx
 
-from .adapters import DisabledBolnaAdapter
+from .adapters import BolnaAdapter
 from .db import Database
-from .models import Actor, ApprovalDecision, Completion, Escalation, Report, Reset, RevisitConfirmation
+from .models import Actor, ApprovalDecision, Completion, Escalation, Report, Reset, RevisitConfirmation, VoiceCall
 from .service import JOB_QUERY, RecoveryService, Workflow, as_job
 
 
@@ -21,6 +22,7 @@ def create_app(db_path: str | None = None, demo_date: str | None = None, clock=N
     path = db_path or os.getenv("DATABASE_PATH", str(Path(__file__).resolve().parents[1] / "data" / "demo.sqlite3"))
     db = Database(path)
     db.initialize(requested_date)
+    bolna = BolnaAdapter()
     with db.connect() as conn:
         business_date = conn.execute("SELECT value FROM metadata WHERE key='demo_date'").fetchone()["value"]
         latest_activity = conn.execute("SELECT MAX(created_at) latest FROM activities").fetchone()["latest"]
@@ -42,7 +44,35 @@ def create_app(db_path: str | None = None, demo_date: str | None = None, clock=N
 
     @app.get("/api/health")
     def health():
-        return {"status": "ok", "mode": "synthetic_demo", "voice": DisabledBolnaAdapter().status()}
+        return {"status": "ok", "mode": "synthetic_demo", "voice": bolna.status()}
+
+    @app.get("/api/voice/status")
+    def voice_status():
+        return bolna.status()
+
+    @app.post("/api/voice/call")
+    def voice_call(payload: VoiceCall):
+        try:
+            return bolna.place_call(payload.recipient_phone_number)
+        except httpx.HTTPStatusError as error:
+            raise HTTPException(error.response.status_code, "Bolna rejected the call request") from error
+        except httpx.HTTPError as error:
+            raise HTTPException(502, "Bolna could not be reached") from error
+        except RuntimeError as error:
+            raise HTTPException(503, str(error)) from error
+
+    @app.get("/api/voice/executions/{execution_id}")
+    def voice_execution(execution_id: str):
+        if not execution_id or len(execution_id) > 200:
+            raise HTTPException(422, "A valid Bolna execution ID is required")
+        try:
+            return bolna.get_execution(execution_id)
+        except httpx.HTTPStatusError as error:
+            raise HTTPException(error.response.status_code, "Bolna rejected the execution request") from error
+        except httpx.HTTPError as error:
+            raise HTTPException(502, "Bolna could not be reached") from error
+        except RuntimeError as error:
+            raise HTTPException(503, str(error)) from error
 
     @app.get("/api/jobs")
     def jobs():

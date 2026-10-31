@@ -94,15 +94,15 @@ The synthetic clock begins at 09:00 UTC on the scenario date and advances while 
 
 ## Configuration
 
-| Variable | Purpose |
-| --- | --- |
-| `DATABASE_PATH` | SQLite file path; default is the backend's local `data/demo.sqlite3`. |
-| `DEMO_DATE` | Fixed scenario date, default `2026-10-21`. |
-| `DEMO_MODE` | This application is a demo. Non-demo operation is unsupported. |
-| `BACKEND_URL` | Next.js server-side API proxy destination; default `http://127.0.0.1:8000`. |
-| `CORS_ORIGINS` | Allowed browser origins for direct API access. Normal UI traffic uses the same-origin Next.js proxy. |
-| `BOLNA_API_KEY`, `BOLNA_AGENT_ID` | Unused phase-two placeholders; voice remains disabled. |
-| `LLM_API_KEY` | Unused phase-two placeholder; reports use the mock interpreter. |
+| Variable                              | Purpose                                                                                                                       |
+| ------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| `DATABASE_PATH`                     | SQLite file path; default is the backend's local `data/demo.sqlite3`.                                                       |
+| `DEMO_DATE`                         | Fixed scenario date, default `2026-10-21`.                                                                                  |
+| `DEMO_MODE`                         | This application is a demo. Non-demo operation is unsupported.                                                                |
+| `BACKEND_URL`                       | Next.js server-side API proxy destination; default `http://127.0.0.1:8000`.                                                 |
+| `CORS_ORIGINS`                      | Allowed browser origins for direct API access. Normal UI traffic uses the same-origin Next.js proxy.                          |
+| `BOLNA_API_KEY`, `BOLNA_AGENT_ID` | Optional server-side Bolna credentials. When both are set, `/api/voice/call` can place a call; calls consume Bolna credits. |
+| `LLM_API_KEY`                       | Unused phase-two placeholder; reports use the mock interpreter.                                                               |
 
 No secret belongs in a `NEXT_PUBLIC_` variable. The frontend reads no provider credentials.
 

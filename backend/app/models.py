@@ -39,3 +39,7 @@ class Escalation(Actor):
 
 class Reset(RequestModel):
     confirm: Literal[True]
+
+
+class VoiceCall(RequestModel):
+    recipient_phone_number: str = Field(pattern=r"^\+[1-9]\d{7,14}$")

@@ -26,7 +26,7 @@ cleanup() {
 trap cleanup EXIT INT TERM
 (
   cd backend
-  exec ../.venv/bin/python -m uvicorn app.main:app --host 127.0.0.1 --port 8000
+  exec "$TASK_ROOT/.venv/bin/python" -m uvicorn app.main:app --host 127.0.0.1 --port 8000
 ) &
 TASK_API_PID=$!
 (
@@ -35,4 +35,12 @@ TASK_API_PID=$!
 ) &
 TASK_UI_PID=$!
 echo 'Dashboard: http://localhost:3000 | API docs: http://localhost:8000/docs'
-wait -n "$TASK_API_PID" "$TASK_UI_PID"
+# Bash 3.2 on macOS does not provide `wait -n`.
+while kill -0 "$TASK_API_PID" 2>/dev/null && kill -0 "$TASK_UI_PID" 2>/dev/null; do
+  sleep 1
+done
+if kill -0 "$TASK_API_PID" 2>/dev/null; then
+  wait "$TASK_UI_PID"
+else
+  wait "$TASK_API_PID"
+fi
