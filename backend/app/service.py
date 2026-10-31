@@ -6,6 +6,7 @@ from typing import Callable
 from fastapi import HTTPException
 
 from .adapters import MockSupplierAdapter, SupplierUnavailable
+from .identifiers import normalize_job_id
 
 
 TRANSITIONS = {
@@ -61,8 +62,10 @@ class Workflow:
         return {"id": cur.fetchone()["id"], "event_type": event_type}
 
     def get_repair_job(self, job_id: str):
-        if not re.fullmatch(r"JOB-\d{4}", job_id):
-            raise HTTPException(422, "Job ID must use JOB-1001 format")
+        try:
+            job_id = normalize_job_id(job_id)
+        except ValueError as error:
+            raise HTTPException(422, "Job ID must contain JOB and four digits, such as JOB-1002") from error
         row = self.conn.execute(JOB_QUERY + " WHERE j.id=?", (job_id,)).fetchone()
         if not row:
             raise HTTPException(404, "Repair job not found")

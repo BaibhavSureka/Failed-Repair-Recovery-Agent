@@ -10,6 +10,7 @@ from fastapi.middleware.cors import CORSMiddleware
 import httpx
 
 from .adapters import BolnaAdapter
+from .identifiers import normalize_job_id
 from .db import Database
 from .models import Actor, ApprovalDecision, Completion, Escalation, Report, Reset, RevisitConfirmation, VoiceCall, VoiceToolReport
 from .service import JOB_QUERY, RecoveryService, Workflow, as_job
@@ -87,7 +88,10 @@ def create_app(db_path: str | None = None, demo_date: str | None = None, clock=N
     def voice_tool_job(job_id: str, x_voice_tool_secret: str | None = Header(default=None)):
         """Bolna custom tool: retrieve the job context before collecting a report."""
         require_voice_tool_secret(x_voice_tool_secret)
-        return service.read_job(job_id)
+        try:
+            return service.read_job(normalize_job_id(job_id))
+        except ValueError as error:
+            raise HTTPException(422, "Job ID must contain JOB and four digits, such as JOB-1002") from error
 
     @app.post("/api/voice/tools/report")
     def voice_tool_report(payload: VoiceToolReport, x_voice_tool_secret: str | None = Header(default=None)):

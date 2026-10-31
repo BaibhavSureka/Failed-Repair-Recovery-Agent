@@ -1,6 +1,8 @@
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
+
+from .identifiers import normalize_job_id
 
 
 class RequestModel(BaseModel):
@@ -46,6 +48,11 @@ class VoiceCall(RequestModel):
 
 
 class VoiceToolReport(RequestModel):
-    job_id: str = Field(pattern=r"^JOB-\d{4}$")
+    job_id: str
     message: str = Field(min_length=1, max_length=4000)
     actor: str = Field(default="Bolna technician call", min_length=2, max_length=100)
+
+    @field_validator("job_id", mode="before")
+    @classmethod
+    def canonicalize_job_id(cls, value):
+        return normalize_job_id(value)
