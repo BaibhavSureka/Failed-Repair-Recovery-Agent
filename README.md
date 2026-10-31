@@ -103,9 +103,23 @@ The synthetic clock begins at 09:00 UTC on the scenario date and advances while 
 | `BACKEND_URL`                       | Next.js server-side API proxy destination; default `http://127.0.0.1:8000`.                                                 |
 | `CORS_ORIGINS`                      | Allowed browser origins for direct API access. Normal UI traffic uses the same-origin Next.js proxy.                          |
 | `BOLNA_API_KEY`, `BOLNA_AGENT_ID` | Optional server-side Bolna credentials. When both are set, `/api/voice/call` can place a call; calls consume Bolna credits. |
+| `VOICE_TOOL_SECRET` | Required shared secret for Bolna custom tools that retrieve a job and submit a technician report. |
 | `LLM_API_KEY`                       | Unused phase-two placeholder; reports use the mock interpreter.                                                               |
 
 No secret belongs in a `NEXT_PUBLIC_` variable. The frontend reads no provider credentials.
+
+### Bolna call workflow
+
+The backend supports two Bolna custom tools:
+
+- `GET /api/voice/tools/job/{job_id}` retrieves the job context.
+- `POST /api/voice/tools/report` submits `{ "job_id": "JOB-1001", "message": "..." }` and runs the existing recovery workflow.
+
+Configure these URLs in the Bolna agent's custom tools using the Render backend URL and send
+`X-Voice-Tool-Secret: <VOICE_TOOL_SECRET>`. Instruct the agent to ask for the exact job ID,
+collect the first-visit findings and required part, read back the report, and call the report
+tool only after the caller confirms it. The tool creates the plan and pending approval; it does
+not approve expenditure, schedule a revisit without both confirmations, or mark a repair complete.
 
 ## Verification
 

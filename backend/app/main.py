@@ -1,16 +1,17 @@
 """Local, synthetic-data API. Run with: uvicorn app.main:app --reload."""
+import hmac
 import os
 import time
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, Header, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 import httpx
 
 from .adapters import BolnaAdapter
 from .db import Database
-from .models import Actor, ApprovalDecision, Completion, Escalation, Report, Reset, RevisitConfirmation, VoiceCall
+from .models import Actor, ApprovalDecision, Completion, Escalation, Report, Reset, RevisitConfirmation, VoiceCall, VoiceToolReport
 from .service import JOB_QUERY, RecoveryService, Workflow, as_job
 
 
@@ -24,6 +25,13 @@ def create_app(db_path: str | None = None, demo_date: str | None = None, clock=N
     db = Database(path=path, database_url=None if db_path else database_url)
     db.initialize(requested_date)
     bolna = BolnaAdapter()
+    voice_tool_secret = os.getenv("VOICE_TOOL_SECRET", "").strip()
+
+    def require_voice_tool_secret(provided: str | None):
+        if not voice_tool_secret:
+            raise HTTPException(503, "VOICE_TOOL_SECRET is not configured")
+        if not provided or not hmac.compare_digest(provided, voice_tool_secret):
+            raise HTTPException(401, "Invalid voice tool credentials")
     with db.connect() as conn:
         business_date = conn.execute("SELECT value FROM metadata WHERE key='demo_date'").fetchone()["value"]
         latest_activity = conn.execute("SELECT MAX(created_at) latest FROM activities").fetchone()["latest"]
@@ -74,6 +82,20 @@ def create_app(db_path: str | None = None, demo_date: str | None = None, clock=N
             raise HTTPException(502, "Bolna could not be reached") from error
         except RuntimeError as error:
             raise HTTPException(503, str(error)) from error
+
+    @app.get("/api/voice/tools/job/{job_id}")
+    def voice_tool_job(job_id: str, x_voice_tool_secret: str | None = Header(default=None)):
+        """Bolna custom tool: retrieve the job context before collecting a report."""
+        require_voice_tool_secret(x_voice_tool_secret)
+        return service.read_job(job_id)
+
+    @app.post("/api/voice/tools/report")
+    def voice_tool_report(payload: VoiceToolReport, x_voice_tool_secret: str | None = Header(default=None)):
+        """Bolna custom tool: submit a spoken technician report to the workflow."""
+        require_voice_tool_secret(x_voice_tool_secret)
+        result = service.report(message=payload.message, job_id=payload.job_id)
+        result["voice_source"] = payload.actor
+        return result
 
     @app.get("/api/jobs")
     def jobs():

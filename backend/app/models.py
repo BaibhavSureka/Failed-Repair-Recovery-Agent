@@ -43,3 +43,9 @@ class Reset(RequestModel):
 
 class VoiceCall(RequestModel):
     recipient_phone_number: str = Field(pattern=r"^\+[1-9]\d{7,14}$")
+
+
+class VoiceToolReport(RequestModel):
+    job_id: str = Field(pattern=r"^JOB-\d{4}$")
+    message: str = Field(min_length=1, max_length=4000)
+    actor: str = Field(default="Bolna technician call", min_length=2, max_length=100)
