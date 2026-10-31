@@ -96,7 +96,8 @@ The synthetic clock begins at 09:00 UTC on the scenario date and advances while 
 
 | Variable                              | Purpose                                                                                                                       |
 | ------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
-| `DATABASE_PATH`                     | SQLite file path; default is the backend's local `data/demo.sqlite3`.                                                       |
+| `DATABASE_PATH` | SQLite file path for local development; default is the backend's local `data/demo.sqlite3`. Ignored when `DATABASE_URL` is set. |
+| `DATABASE_URL` | Optional PostgreSQL/Supabase connection string. When set, it is used instead of `DATABASE_PATH`. |
 | `DEMO_DATE`                         | Fixed scenario date, default `2026-10-21`.                                                                                  |
 | `DEMO_MODE`                         | This application is a demo. Non-demo operation is unsupported.                                                                |
 | `BACKEND_URL`                       | Next.js server-side API proxy destination; default `http://127.0.0.1:8000`.                                                 |
@@ -138,6 +139,33 @@ docker compose up --build
 The frontend is on port 3000 and backend on 8000, both bound to loopback by default. SQLite persists in the `demo-data` volume. The frontend build receives `BACKEND_URL=http://backend:8000`; rebuild when changing its proxy destination because Next.js rewrites are captured at build time.
 
 For a hosted demo, deploy the two containers on a private network with a persistent backend volume and put an authenticated HTTPS reverse proxy in front of the frontend. This demo has no account system or authorization layer; its operator controls and reset endpoint must remain private. Single-backend SQLite deployment is supported; do not scale to independent replicas sharing a local file.
+
+### Supabase/PostgreSQL deployment
+
+The backend supports SQLite locally and PostgreSQL/Supabase when `DATABASE_URL` is
+set. Create a Supabase project, open **Connect**, copy a PostgreSQL connection
+string, and add `sslmode=require` if it is not already included. Keep the
+password URL-encoded and store the complete value only in Render's environment
+variables:
+
+```env
+DATABASE_URL=postgresql://postgres.<project-ref>:<password>@<host>:5432/postgres?sslmode=require
+```
+
+On Render, set `DATABASE_URL` and redeploy. It takes precedence over
+`DATABASE_PATH`; remove `DATABASE_PATH` from Render to avoid ambiguity. The
+application initializes the schema and seeds the deterministic fixture data on
+the first startup. To intentionally reset the shared database, run the seed
+command as a one-off job or locally with the same `DATABASE_URL`:
+
+```bash
+cd backend
+../.venv/bin/python -m app.seed --reset
+```
+
+Do not run reset against a database containing data you need to keep. Supabase
+is now the shared persistent database for Render and any local process configured
+with the same URL; local SQLite remains the default when `DATABASE_URL` is absent.
 
 Sites hosting runs server code in Cloudflare Workers and cannot run this Python service as supplied. The requested FastAPI + Next.js architecture is therefore delivered as a local/container application instead of publishing a disconnected dashboard.
 

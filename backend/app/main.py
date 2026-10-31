@@ -19,8 +19,9 @@ def create_app(db_path: str | None = None, demo_date: str | None = None, clock=N
         raise RuntimeError("This build only supports DEMO_MODE=true; production authentication and integrations are not enabled")
     requested_date = demo_date or os.getenv("DEMO_DATE", "2026-10-21")
     date.fromisoformat(requested_date)
+    database_url = os.getenv("DATABASE_URL")
     path = db_path or os.getenv("DATABASE_PATH", str(Path(__file__).resolve().parents[1] / "data" / "demo.sqlite3"))
-    db = Database(path)
+    db = Database(path=path, database_url=None if db_path else database_url)
     db.initialize(requested_date)
     bolna = BolnaAdapter()
     with db.connect() as conn:

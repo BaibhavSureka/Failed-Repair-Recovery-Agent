@@ -56,9 +56,9 @@ class Workflow:
         if not isinstance(details, dict) or not event_type:
             raise HTTPException(422, "Activity type and structured details are required")
         self.get_repair_job(job_id)
-        cur = self.conn.execute("INSERT INTO activities(job_id,event_type,details,created_at) VALUES (?,?,?,?)",
+        cur = self.conn.execute("INSERT INTO activities(job_id,event_type,details,created_at) VALUES (?,?,?,?) RETURNING id",
                                 (job_id, event_type, json.dumps(details), self.now()))
-        return {"id": cur.lastrowid, "event_type": event_type}
+        return {"id": cur.fetchone()["id"], "event_type": event_type}
 
     def get_repair_job(self, job_id: str):
         if not re.fullmatch(r"JOB-\d{4}", job_id):

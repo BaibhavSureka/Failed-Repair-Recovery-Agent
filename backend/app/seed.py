@@ -12,9 +12,10 @@ def main():
     args = parser.parse_args()
     if os.getenv("DEMO_MODE", "true").lower() not in {"true", "1", "yes"}:
         parser.error("Seeding is only supported in DEMO_MODE=true")
+    database_url = os.getenv("DATABASE_URL")
     path = os.getenv("DATABASE_PATH", str(Path(__file__).resolve().parents[1] / "data" / "demo.sqlite3"))
     demo_date = os.getenv("DEMO_DATE", "2026-10-21")
-    db = Database(path)
+    db = Database(path=path, database_url=database_url)
     db.initialize(demo_date)
     if args.reset:
         db.reset(demo_date)

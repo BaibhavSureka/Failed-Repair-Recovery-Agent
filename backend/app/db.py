@@ -1,11 +1,15 @@
 import json
+import re
 import sqlite3
 from contextlib import contextmanager
 from datetime import date, timedelta
 from pathlib import Path
 
+import psycopg
+from psycopg.rows import dict_row
 
-SCHEMA = """
+
+SQLITE_SCHEMA = """
 CREATE TABLE IF NOT EXISTS metadata (key TEXT PRIMARY KEY, value TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS customers (id TEXT PRIMARY KEY, name TEXT NOT NULL, availability TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS technicians (id TEXT PRIMARY KEY, name TEXT NOT NULL, availability TEXT NOT NULL);
@@ -24,23 +28,61 @@ CREATE TABLE IF NOT EXISTS activities (id INTEGER PRIMARY KEY AUTOINCREMENT, job
 CREATE INDEX IF NOT EXISTS activity_job ON activities(job_id,id);
 """
 
+POSTGRES_SCHEMA = SQLITE_SCHEMA.replace(
+    "id INTEGER PRIMARY KEY AUTOINCREMENT",
+    "id BIGSERIAL PRIMARY KEY",
+)
+
+
+class PostgresConnection:
+    """Small DB-API compatibility layer for the existing qmark SQL."""
+
+    backend = "postgres"
+
+    def __init__(self, connection):
+        self._connection = connection
+
+    def execute(self, query, parameters=()):
+        return self._connection.execute(query.replace("?", "%s"), parameters)
+
+    def commit(self):
+        self._connection.commit()
+
+    def rollback(self):
+        self._connection.rollback()
+
+    def close(self):
+        self._connection.close()
+
 
 class Database:
-    def __init__(self, path: str):
-        self.path = str(path)
+    def __init__(self, path: str | None = None, database_url: str | None = None):
+        self.database_url = database_url or (path if path and re.match(r"^postgres(?:ql)?://", path) else None)
+        self.path = str(path or database_url or "")
         self._anchor = None
+        if self.database_url:
+            return
+        if not self.path:
+            raise ValueError("A SQLite path or DATABASE_URL is required")
         if self.path == ":memory:":
             self.path = f"file:recovery-{id(self)}?mode=memory&cache=shared"
             self._anchor = sqlite3.connect(self.path, uri=True)
         else:
             Path(self.path).parent.mkdir(parents=True, exist_ok=True)
 
+    @property
+    def backend(self):
+        return "postgres" if self.database_url else "sqlite"
+
     @contextmanager
     def connect(self):
-        conn = sqlite3.connect(self.path, timeout=15, uri=self.path.startswith("file:"))
-        conn.row_factory = sqlite3.Row
-        conn.execute("PRAGMA foreign_keys = ON")
-        conn.execute("PRAGMA busy_timeout = 15000")
+        if self.database_url:
+            conn = PostgresConnection(psycopg.connect(self.database_url, row_factory=dict_row))
+        else:
+            conn = sqlite3.connect(self.path, timeout=15, uri=self.path.startswith("file:"))
+            conn.row_factory = sqlite3.Row
+            conn.execute("PRAGMA foreign_keys = ON")
+            conn.execute("PRAGMA busy_timeout = 15000")
         try:
             yield conn
         finally:
@@ -49,7 +91,8 @@ class Database:
     @contextmanager
     def transaction(self):
         with self.connect() as conn:
-            conn.execute("BEGIN IMMEDIATE")
+            if self.backend == "sqlite":
+                conn.execute("BEGIN IMMEDIATE")
             try:
                 yield conn
                 conn.commit()
@@ -59,7 +102,13 @@ class Database:
 
     def initialize(self, demo_date: str):
         with self.connect() as conn:
-            conn.executescript(SCHEMA)
+            if self.backend == "sqlite":
+                conn.executescript(SQLITE_SCHEMA)
+            else:
+                for statement in POSTGRES_SCHEMA.split(";"):
+                    if statement.strip():
+                        conn._connection.execute(statement)
+                conn.commit()
         with self.transaction() as conn:
             if not conn.execute("SELECT 1 FROM metadata WHERE key='seed_version'").fetchone():
                 seed_connection(conn, demo_date)
@@ -68,7 +117,10 @@ class Database:
         with self.transaction() as conn:
             for table in ["activities", "revisits", "reservations", "orders", "approvals", "plans", "jobs", "supplier_quotes", "suppliers", "parts", "equipment", "technicians", "customers", "metadata"]:
                 conn.execute(f"DELETE FROM {table}")
-            conn.execute("DELETE FROM sqlite_sequence WHERE name='activities'")
+            if self.backend == "sqlite":
+                conn.execute("DELETE FROM sqlite_sequence WHERE name='activities'")
+            else:
+                conn.execute("ALTER SEQUENCE activities_id_seq RESTART WITH 1")
             seed_connection(conn, demo_date)
 
 
