@@ -29,6 +29,27 @@ JOB_QUERY = """SELECT j.*, c.name customer_name, e.name equipment_name,
                JOIN customers c ON c.id=e.customer_id
                JOIN technicians t ON t.id=j.technician_id"""
 
+PART_ALIASES = {
+    "compressor relay": ("compressor relay", "start relay"),
+    "oven thermostat": ("oven thermostat", "thermostat"),
+    "fan motor": ("fan motor",),
+    "drain pump": ("drain pump",),
+    "door gasket": ("door gasket",),
+    "water inlet valve": ("water inlet valve", "inlet valve"),
+    "heating element": ("heating element",),
+    "control board": ("control board", "pcb"),
+    "drive belt": ("drive belt",),
+    "temperature sensor": ("temperature sensor",),
+    "air filter": ("air filter",),
+    "contactor": ("contactor",),
+}
+
+
+def part_alias_matches(value: str, canonical: str) -> bool:
+    value = value.strip().lower()
+    canonical = canonical.strip().lower()
+    return value == canonical or value in PART_ALIASES.get(canonical, ())
+
 
 def as_job(row) -> dict:
     result = dict(row)
@@ -90,6 +111,9 @@ class Workflow:
         if not isinstance(part_name, str) or not part_name.strip():
             raise HTTPException(422, "A spare part name is required")
         row = self.conn.execute("SELECT * FROM parts WHERE lower(name)=lower(?)", (part_name,)).fetchone()
+        if not row:
+            rows = self.conn.execute("SELECT * FROM parts").fetchall()
+            row = next((candidate for candidate in rows if part_alias_matches(part_name, candidate["name"])), None)
         if not row:
             raise HTTPException(422, "Unknown spare part; clarify the part name")
         return {**dict(row), "quantity": quantity, "available": row["stock"] >= quantity}
@@ -391,10 +415,11 @@ class RecoveryService:
                 extracted["job_id"] = job["id"]
             if bare_id:
                 extracted.update({"missing_part": job["required_part"], "equipment": job["equipment_name"], "issue": job["issue"], "urgency": job["priority"], "confidence": 1.0})
-            if extracted["missing_part"].lower() != job["required_part"].lower():
+            if not part_alias_matches(extracted["missing_part"], job["required_part"]):
                 response["message"] = f"This job records {job['required_part']}. Clarify the different part before changing its recovery plan."
                 extracted["missing_fields"].append("missing_part")
                 return response
+            extracted["missing_part"] = job["required_part"]
             if extracted["equipment"] and extracted["equipment"].lower() != job["equipment_name"].lower():
                 response["message"] = "The equipment in the report differs from the selected job. Clarify the job ID."
                 extracted["missing_fields"].append("job_id")
