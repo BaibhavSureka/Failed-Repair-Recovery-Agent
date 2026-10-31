@@ -5,7 +5,7 @@ import time
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 
-from fastapi import FastAPI, Header, HTTPException
+from fastapi import FastAPI, Header, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 import httpx
 
@@ -92,6 +92,14 @@ def create_app(db_path: str | None = None, demo_date: str | None = None, clock=N
             return service.read_job(normalize_job_id(job_id))
         except ValueError as error:
             raise HTTPException(422, "Job ID must contain JOB and four digits, such as JOB-1002") from error
+
+    @app.get("/api/voice/tools/job")
+    def voice_tool_job_query(
+        job_id: str = Query(..., min_length=1, max_length=50),
+        x_voice_tool_secret: str | None = Header(default=None),
+    ):
+        """Bolna-compatible variant that receives the job ID as a query parameter."""
+        return voice_tool_job(job_id, x_voice_tool_secret)
 
     @app.post("/api/voice/tools/report")
     def voice_tool_report(payload: VoiceToolReport, x_voice_tool_secret: str | None = Header(default=None)):
