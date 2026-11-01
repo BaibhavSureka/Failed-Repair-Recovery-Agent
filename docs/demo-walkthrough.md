@@ -1,10 +1,11 @@
 # Restaurant refrigerator recovery demo
 
 Run the backend and dashboard using the root README. Every customer, technician,
-inventory item and supplier in this demo is synthetic. The default business date
-is **21 October 2026**. Orders and confirmations are simulated operator inputs;
-this phase sends no calls, messages or purchases to outside services. Bolna is a
-disabled adapter boundary while the text workflow is verified.
+The seeded businesses, jobs, inventory and suppliers are sample records. The
+default scenario date is **21 October 2026**. Orders and participant
+confirmations are simulated operator inputs. Optional Bolna call and workflow
+tool endpoints are available when configured; supplier purchases and participant
+confirmations remain simulated.
 
 ## Complete one recovery
 

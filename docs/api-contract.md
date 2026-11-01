@@ -30,4 +30,4 @@ All routes use `/api`. JSON errors use FastAPI `detail`. All mutations are trans
 - `POST /followups/run` body optional `{}`. Returns `{escalated: string[], checked: number}`. Checks due actions without inventing communications. Clock-injectable for tests.
 - `POST /demo/reset` body `{confirm: true}` restores deterministic fixtures, demo only. Returns `{message}`.
 
-One controlled recovery workflow; no autonomous multi-agent implementation. Local default uses a clearly labeled deterministic report interpreter and SQLite. Bolna adapter boundary is disabled until phase two. UI connects only through these API routes, with Next.js proxy to backend.
+One controlled recovery workflow; no autonomous multi-agent implementation. Local default uses deterministic report interpretation and SQLite. Optional Bolna call and custom-tool routes are implemented; custom-tool routes require `VOICE_TOOL_SECRET`. No live LLM extraction is connected. UI connects through the API routes, with the Next.js proxy to the backend.
